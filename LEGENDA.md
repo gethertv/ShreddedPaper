@@ -39,3 +39,24 @@ Only a separate measured battle/TNT test can establish performance gains.
 
 Operational records and mode configuration live in the Gether-Core repository
 under `examples/legenda/gildie/`.
+
+## Signed chat packet ordering (2026-10-20)
+
+Signed commands previously deferred decoding to a player tick while subsequent
+chat packets decoded on the network thread. That could advance the signed chain
+out of order, producing `invalid_signature` followed by `chain_broken`.
+Chat, signed commands and ACK packets now enter the same player-owned queue as
+chat-session updates. A command already on that thread runs without another
+queue hop. Decoration and broadcasting keep their asynchronous pipeline.
+
+`ChatPacketOrderingTestSuite` exercises the actual packet handlers with a queued
+owner scheduler and separately reproduces the permanent failure using real RSA
+signatures. The ordering test failed before the patch; both tests pass after it:
+
+```sh
+./gradlew :shreddedpaper-server:test --tests '*ChatPacketOrderingTestSuite' --no-daemon --max-workers=4 -Dorg.gradle.jvmargs=-Xmx4g
+```
+
+This proves the ordering regression and decoder failure, not the cause of every
+live chat error. A client session through Velocity/FreedomChat still needs
+confirmation after rollout.

@@ -85,15 +85,39 @@
      }
  
      private void removePlayerFromWorld() {
+@@ -2390,6 +_,7 @@
+ 
+     @Override
+     public void handleChat(ServerboundChatPacket packet) {
++        PacketUtils.ensureRunningOnSameThread(packet, this, this.player.level()); // ShreddedPaper - signed chat, commands, sessions and ACKs share the owner queue
+         // CraftBukkit start - async chat
+         // SPIGOT-3638
+         if (this.server.isStopped()) {
+@@ -2459,6 +_,7 @@
+ 
+     @Override
+     public void handleSignedChatCommand(ServerboundChatCommandSignedPacket packet) {
++        PacketUtils.ensureRunningOnSameThread(packet, this, this.player.level()); // ShreddedPaper - preserve signed message order before touching lastSeen
+         Optional<LastSeenMessages> optional = this.unpackAndApplyLastSeen(packet.lastSeenMessages());
+         if (!optional.isEmpty()) {
+             this.tryHandleChat(packet.command(), true, () -> {
 @@ -2585,7 +_,7 @@
              this.player.resetLastActionTime();
              // CraftBukkit start
              if (sync) {
 -                this.server.execute(handler);
-+                ShreddedPaper.runSync(player, handler); // ShreddedPaper - run on player's thread
++                ShreddedPaper.ensureSync(player, handler); // ShreddedPaper - avoid a second queue hop that reorders signed commands
              } else {
                  handler.run();
              }
+@@ -2699,6 +_,7 @@
+ 
+     @Override
+     public void handleChatAck(ServerboundChatAckPacket packet) {
++        PacketUtils.ensureRunningOnSameThread(packet, this, this.player.level()); // ShreddedPaper - ACK offsets must not overtake queued chat updates
+         synchronized (this.lastSeenMessages) {
+             try {
+                 this.lastSeenMessages.applyOffset(packet.offset());
 @@ -3042,23 +_,27 @@
          switch (action) {
              case PERFORM_RESPAWN:
